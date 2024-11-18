@@ -243,6 +243,7 @@ class MFPackage(MFBlocks, metaclass=MFPackageMappingMeta):
         pname = strip(mempath.split("/")[-1])
         ftype = kwargs.pop("ftype", None)
         ptype = ftype.replace("6", "")
+        kwargs.pop("mname", None)
         kwargs.pop("modeltype", None)
 
         while True:
@@ -250,7 +251,7 @@ class MFPackage(MFBlocks, metaclass=MFPackageMappingMeta):
             line = f.readline()
             if line == "":
                 break
-            if line == "\n":
+            if line == "\n" or line.lstrip().startswith("#"):
                 continue
             line = strip(line).lower()
             words = line.split()

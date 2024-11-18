@@ -7,7 +7,7 @@ import numpy as np
 
 from flopy4.array import MFArray, MFArrayType
 from flopy4.param import MFParam, MFParams, MFReader
-from flopy4.scalar import MFDouble, MFInteger, MFScalar
+from flopy4.scalar import MFScalar
 from flopy4.utils import strip
 
 PAD = "  "
@@ -338,32 +338,77 @@ class MFList(MFCompound):
         """Load list input with the given component parameters from a file."""
 
         blk_params = kwargs.pop("blk_params", {})
+        model_shape = kwargs.pop("model_shape", None)
         params = kwargs.pop("params", None)
-        type = kwargs.pop("type", None)
         kwargs.pop("mname", None)
-        kwargs.pop("shape", None)
+        kwargs.pop("shape", None)  # e.g. maxbound
+
+        jidx = -1
+        param_lists = []
+        param_cols = []
+        param_types = []
+        for k in list(params):
+            if params[k].name == "aux" or params[k].name == "boundname":
+                continue
+                # raise NotImplementedError(
+                #    "boundames and auxvars not yet supported in period blocks"
+                # )
+            pcols = 0
+            if (
+                params[k].shape is None
+                or params[k].shape == ""
+                or params[k].shape == "(:)"
+            ):
+                pcols = 1
+            elif params[k].shape == "(ncelldim)":
+                assert model_shape
+                pcols = len(model_shape)
+            elif params[k].shape == "(ncvert)":
+                # param_cols will be updated each line
+                jidx = len(param_cols) - 1
+            else:
+                raise ValueError(
+                    f"MFList param {params[k].name} has "
+                    f"unsupported shape {params[k].shape}"
+                )
+            param_cols.append(pcols)
+            param_types.append(params[k].type)
+            param_lists.append(list())
 
         if list(params.items())[-1][1].shape == "(:)":
-            maxsplit = len(params) - 1
+            maxsplit = sum(param_cols) - 1
         else:
             maxsplit = -1
-
-        param_lists = []
-        # TODO: support multi-dimensional params
-        for i in range(len(params)):
-            param_lists.append(list())
+        assert not (jidx >= 0 and maxsplit >= 0)
 
         while True:
             pos = f.tell()
             line = f.readline()
-            if line.lower().startswith("end"):
+            if line == "\n" or line.lstrip().startswith("#"):
+                continue
+            elif line.lower().startswith("end"):
                 f.seek(pos)
                 break
             else:
                 tokens = strip(line).split(maxsplit=maxsplit)
-                assert len(tokens) == len(param_lists)
-                for i, token in enumerate(tokens):
-                    param_lists[i].append(token)
+                if jidx >= 0:
+                    param_cols[jidx + 1] = int(tokens[jidx])
+                assert len(tokens) == sum(param_cols)
+                icol = 0
+                for i in range(len(param_types)):
+                    row_l = []
+                    for j in range(param_cols[i]):
+                        if param_types[i] == "integer":
+                            row_l.append(int(tokens[icol]))
+                        elif param_types[i] == "double":
+                            row_l.append(float(tokens[icol]))
+                        else:
+                            row_l.append(tokens[icol])
+                        icol += 1
+                    if param_cols[i] == 1:
+                        param_lists[i].append(row_l[0])
+                    else:
+                        param_lists[i].append(row_l)
 
         if blk_params and "dimensions" in blk_params:
             nbound = blk_params.get("dimensions").get("nbound")
@@ -372,31 +417,41 @@ class MFList(MFCompound):
                     if len(param_list) > nbound:
                         raise ValueError("MFList nbound not satisfied")
 
-        list_params = MFList.create_list_params(params, param_lists, **kwargs)
-        return cls(list_params, type=type, **kwargs)
+        list_params = MFList.create_list_params(
+            params, param_lists, param_cols, **kwargs
+        )
+        return cls(list_params, **kwargs)
 
     @staticmethod
     def create_list_params(
         params: Dict[str, MFParam],
         param_lists: list,
+        param_cols: list,
         **kwargs,
     ) -> Dict[str, MFParam]:
         """Create the param dictionary"""
         idx = 0
         list_params = dict()
         for param_name, param in params.items():
-            if type(param) is MFDouble:
+            if param_name == "aux" or param_name == "boundname":
+                continue
+            shape = None
+            if param_cols[idx] == 1:
+                shape = len(param_lists[idx])
+            else:
+                shape = (len(param_lists[idx]), param_cols[idx])
+            if type(param) is MFArray and param.type == "double":
                 list_params[param_name] = MFArray(
-                    shape=len(param_lists[idx]),
+                    shape=shape,
                     array=np.array(param_lists[idx], dtype=np.float64),
                     how=MFArrayType.internal,
                     factor=1.0,
                     path=None,
                     **kwargs,
                 )
-            elif type(param) is MFInteger:
+            elif type(param) is MFArray and param.type == "integer":
                 list_params[param_name] = MFArray(
-                    shape=len(param_lists[idx]),
+                    shape=shape,
                     array=np.array(param_lists[idx], dtype=np.int32),
                     how=MFArrayType.internal,
                     factor=1,
@@ -406,7 +461,7 @@ class MFList(MFCompound):
             else:
                 list_params[param_name] = MFScalarList(
                     value=param_lists[idx],
-                    type=type(param),
+                    # type=type(param),
                     **kwargs,
                 )
 
@@ -427,5 +482,9 @@ class MFList(MFCompound):
         for i in range(count):
             line = f"{PAD}"
             for name, param in self.params.items():
-                line += f"{param.value[i]}\t"
+                if isinstance(param.value[i], np.ndarray):
+                    for v in param.value[i]:
+                        line += f"{v}\t"
+                else:
+                    line += f"{param.value[i]}\t"
             f.write(line + "\n")

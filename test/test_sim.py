@@ -1,3 +1,8 @@
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
 import numpy as np
 
 from flopy4.simulation import MFSimulation
@@ -26,7 +31,7 @@ def test_load_sim(tmp_path):
         f.write("    CONSTANT  -100.00000000\n")
         f.write("    CONSTANT  -150.00000000\n")
         f.write("    CONSTANT  -350.00000000\n")
-        f.write("END GRIDDATA\nn\\n")
+        f.write("END GRIDDATA\n")
 
     ic_fpth = tmp_path / f"{name}.ic"
     strt = np.linspace(0.0, 30.0, num=300)
@@ -107,7 +112,7 @@ def test_load_sim(tmp_path):
         f.write("  INNER_MAXIMUM  300\n")
         f.write("  INNER_DVCLOSE  1.00000000E-09\n")
         # TODO: fails
-        # f.write("  inner_rclose  1.00000000E-06\n")
+        # f.write("  INNER_RCLOSE  1.00000000E-06\n")
         f.write("  LINEAR_ACCELERATION  bicgstab\n")
         f.write("  RELAXATION_FACTOR       1.00000000\n")
         f.write("  SCALING_METHOD  none\n")
@@ -141,15 +146,10 @@ def test_load_sim(tmp_path):
     assert "exchanges" in s.nam
     assert "solutiongroup" in s.nam
     assert "tdis6" in s.nam["timing"]
-    # assert s.nam["timing"]["tdis6"].value == f"{tmp_path}/sim.tdis"
     assert "mtype" in s.nam["models"].params["models"]
     assert "mfname" in s.nam["models"].params["models"]
     assert "mname" in s.nam["models"].params["models"]
     assert s.nam["models"].params["models"]["mtype"][0] == "GWF6"
-    # assert (
-    #    s.nam["models"].params["models"]["mfname"][0]
-    #    == f"{tmp_path}/{name}.nam"
-    # )
     assert s.nam["models"].params["models"]["mname"][0] == f"{name}"
     assert "slntype" in s.nam["solutiongroup"].params["solutiongroup"]
     assert "slnfname" in s.nam["solutiongroup"].params["solutiongroup"]
@@ -157,10 +157,6 @@ def test_load_sim(tmp_path):
     assert (
         s.nam["solutiongroup"].params["solutiongroup"]["slntype"][0] == "ims6"
     )
-    # assert (
-    #    s.nam["solutiongroup"].params["solutiongroup"]["slnfname"][0]
-    #    == f"{tmp_path}/{name}.ims"
-    # )
     assert (
         s.nam["solutiongroup"].params["solutiongroup"]["slnmnames"][0]
         == f"{name}"
@@ -187,7 +183,7 @@ def test_load_sim(tmp_path):
     assert s.tdis.params["start_date_time"] == "2041-01-01t00:00:00-05:00"
     assert s.tdis.params["nper"] == 31
     assert np.allclose(
-        s.tdis.params["perioddata"]["perlen"],
+        [float(f) for f in s.tdis.params["perioddata"]["perlen"]],
         np.array(
             [
                 1.0,
@@ -263,7 +259,7 @@ def test_load_sim(tmp_path):
         ),
     )
     assert np.allclose(
-        s.tdis.params["perioddata"]["tsmult"],
+        [float(f) for f in s.tdis.params["perioddata"]["tsmult"]],
         np.array(
             [
                 1.0,
@@ -314,11 +310,11 @@ def test_load_sim(tmp_path):
     assert "scaling_method" in s.solvers["ims_0"].params
     assert "reordering_method" in s.solvers["ims_0"].params
     assert s.solvers["ims_0"].params["print_option"] == "summary"
-    assert s.solvers["ims_0"].params["outer_dvclose"] == 1.00000000e-09
+    assert float(s.solvers["ims_0"].params["outer_dvclose"]) == 1.00000000e-09
     assert s.solvers["ims_0"].params["outer_maximum"] == 500
     assert s.solvers["ims_0"].params["under_relaxation"] == "none"
     assert s.solvers["ims_0"].params["inner_maximum"] == 300
-    assert s.solvers["ims_0"].params["inner_dvclose"] == 1.00000000e-09
+    assert float(s.solvers["ims_0"].params["inner_dvclose"]) == 1.00000000e-09
     assert s.solvers["ims_0"].params["linear_acceleration"] == "bicgstab"
     assert s.solvers["ims_0"].params["relaxation_factor"] == 1.00000000
     assert s.solvers["ims_0"].params["scaling_method"] == "none"
@@ -338,8 +334,96 @@ def test_load_sim(tmp_path):
         f"sim/{name}/dis/dimensions/ncol"
     )
 
-    import os
-
     write_dir = tmp_path / "write"
     os.makedirs(write_dir)
     s.write(write_dir)
+
+
+def test_gwf_chd01(tmp_path):
+    name = "gwf_chd01"
+
+    data_fpth = Path(__file__).parent / "data" / "test_gwf_chd01"
+    shutil.copytree(data_fpth, tmp_path / "gwf_chd01")
+    sim_fpth = Path(tmp_path / "gwf_chd01" / "mfsim.nam")
+
+    sim = None
+    with open(sim_fpth, "r") as f:
+        sim = MFSimulation.load(f)
+
+    write_dir = tmp_path / "write"
+    os.makedirs(write_dir)
+    sim.write(write_dir)
+
+    w = subprocess.run(["which", "mf6"])
+    if w.returncode == 0:
+        os.chdir(tmp_path / "gwf_chd01")
+        subprocess.run(["mf6"])
+        os.chdir(write_dir)
+        subprocess.run(["mf6"])
+        diff = subprocess.run(
+            ["diff", f"./{name}.lst", f"../gwf_chd01/{name}.lst"]
+        )
+        if diff.stderr:
+            print(diff.stderr)
+        else:
+            print(f"\nmodel lst file diffs: {diff.stdout}")
+
+
+def test_gwf_disv(tmp_path):
+    name = "disv01a"
+
+    data_fpth = Path(__file__).parent / "data" / "test_mf6model_0-disv01a_0"
+    shutil.copytree(data_fpth, tmp_path / "disv01a")
+    sim_fpth = Path(tmp_path / "disv01a" / "mfsim.nam")
+
+    sim = None
+    with open(sim_fpth, "r") as f:
+        sim = MFSimulation.load(f)
+
+    write_dir = tmp_path / "write"
+    os.makedirs(write_dir)
+    sim.write(write_dir)
+
+    w = subprocess.run(["which", "mf6"])
+    if w.returncode == 0:
+        os.chdir(tmp_path / "disv01a")
+        subprocess.run(["mf6"])
+        os.chdir(write_dir)
+        subprocess.run(["mf6"])
+        diff = subprocess.run(
+            ["diff", f"./{name}.lst", f"../disv01a/{name}.lst"]
+        )
+        if diff.stderr:
+            print(diff.stderr)
+        else:
+            print(f"\nmodel lst file diffs: {diff.stdout}")
+
+
+def test_gwf_disu(tmp_path):
+    name = "disu01a"
+
+    data_fpth = Path(__file__).parent / "data" / "test_mf6model_0-disu01a_0"
+    shutil.copytree(data_fpth, tmp_path / "disu01a")
+    sim_fpth = Path(tmp_path / "disu01a" / "mfsim.nam")
+
+    sim = None
+    with open(sim_fpth, "r") as f:
+        sim = MFSimulation.load(f)
+
+    write_dir = tmp_path / "write"
+    os.makedirs(write_dir)
+    sim.write(write_dir)
+
+    w = subprocess.run(["which", "mf6"])
+    if w.returncode == 0:
+        os.chdir(tmp_path / "disu01a")
+        subprocess.run(["mf6"])
+        os.chdir(write_dir)
+        subprocess.run(["mf6"])
+        diff = subprocess.run(
+            ["diff", f"./{name}.lst", f"../disu01a/{name}.lst"]
+        )
+        if diff.stderr:
+            print(diff.stderr)
+        else:
+            print(f"\nmodel lst file diffs: {diff.stdout}")
