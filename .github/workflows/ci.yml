@@ -11,8 +11,6 @@ on:
     paths-ignore:
       - '**.md'
       - '.gitignore'
-env:
-  PIXI_VERSION: v0.39.2
 jobs:
   lint:
     name: Lint
@@ -25,7 +23,7 @@ jobs:
       - name: Setup pixi
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          pixi-version: $PIXI_VERSION
+          pixi-version: v0.39.2
           environments: dev
           activate-environment: true
 
@@ -38,12 +36,12 @@ jobs:
     steps:
 
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup pixi
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          pixi-version: $PIXI_VERSION
+          pixi-version: v0.39.2
           environments: dev
           activate-environment: true
 
@@ -79,7 +77,7 @@ jobs:
       - name: Setup pixi
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          pixi-version: $PIXI_VERSION
+          pixi-version: v0.39.2
           environments: test${{ matrix.python }}
           activate-environment: true
 
