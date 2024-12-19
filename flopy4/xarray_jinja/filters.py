@@ -1,5 +1,3 @@
-import sys
-
 import numpy as np
 import xarray as xr
 
@@ -11,6 +9,4 @@ def dask_expand(data: xr.DataArray):
 
 
 def nparray2string(data: np.ndarray):
-    return np.array2string(
-        data, separator=" ", precision=4, max_line_width=sys.maxsize
-    )[1:-1]  # remove brackets
+    return np.array2string(data, separator=" ")[1:-1]  # remove brackets

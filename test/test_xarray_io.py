@@ -65,8 +65,9 @@ def create_and_write_jinja(tmp_path, data: xr.DataArray):
     generator = env.get_template("disu_template.disu.jinja").generate(
         data=data
     )
-    with open(tmp_path / "test_xarray_to_text_jinja.disu", "w") as f:
-        f.writelines(generator)
+    with np.printoptions(precision=4, linewidth=sys.maxsize):
+        with open(tmp_path / "test_xarray_to_text_jinja.disu", "w") as f:
+            f.writelines(generator)
 
 
 @pytest.mark.parametrize(
