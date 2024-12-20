@@ -47,7 +47,6 @@ def time_file():
 def profile_function(
     func: Callable,
     args: Tuple[Any, ...],
-    memory_file,
     time_file,
     print_args={},
 ) -> None:
@@ -81,15 +80,12 @@ def create_and_write_jinja(tmp_path, data: xr.DataArray):
     test_combinations,
 )
 @pytest.mark.skip("Too slow for large data")
-def test_xarray_to_text_jinja(
-    tmp_path, max_size, chunks, time_file, memory_file
-):
+def test_xarray_to_text_jinja(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
     profile_function(
         create_and_write_jinja,
         (tmp_path, data),
-        memory_file,
         time_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
@@ -119,15 +115,12 @@ def create_and_write_pandas(tmp_path, data: xr.DataArray):
     "max_size,chunks",
     test_combinations,
 )
-def test_xarray_to_text_pandas(
-    tmp_path, max_size, chunks, memory_file, time_file
-):
+def test_xarray_to_text_pandas(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
     profile_function(
         create_and_write_pandas,
         (tmp_path, data),
-        memory_file,
         time_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
@@ -151,15 +144,12 @@ def create_and_write_np_savetxt(tmp_path, data: xr.DataArray):
     test_combinations,
 )
 @pytest.mark.skip("Too slow for large data")
-def test_xarray_to_text_np_savetxt(
-    tmp_path, max_size, chunks, memory_file, time_file
-):
+def test_xarray_to_text_np_savetxt(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
     profile_function(
         create_and_write_np_savetxt,
         (tmp_path, data),
-        memory_file,
         time_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
@@ -194,15 +184,12 @@ def create_and_write_extras(tmp_path, data: xr.DataArray):
     "max_size,chunks",
     test_combinations,
 )
-def test_xarray_to_text_extras(
-    tmp_path, max_size, chunks, memory_file, time_file
-):
+def test_xarray_to_text_extras(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
     profile_function(
         create_and_write_extras,
         (tmp_path, data),
-        memory_file,
         time_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
