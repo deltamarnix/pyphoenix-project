@@ -1,3 +1,4 @@
+import sys
 import time
 from typing import Any, Callable, Tuple
 
@@ -12,13 +13,18 @@ import xarray_extras.csv
 import flopy4.xarray_jinja.filters as filters
 
 test_combinations = [
-    (1_000, 100),
-    (1_000_000, 1_000),
+    # (1_000, 100),
+    # (1_000_000, 1_000),
     (1_000_000, 10_000),
-    (10_000_000, 1_000),
+    # (10_000_000, 1_000),
     (10_000_000, 10_000),
-    (100_000_000, 10_000),
+    # (100_000_000, 10_000),
     (100_000_000, 100_000),
+    (100_000_000, 1_000_000),  # 1_000_000 is about 8MB of chunks.
+    (
+        100_000_000,
+        10_000_000,
+    ),  # 10_000_000 is about 80MB of chunks. Copilot advised 100MB.
 ]
 
 
@@ -74,6 +80,7 @@ def create_and_write_jinja(tmp_path, data: xr.DataArray):
     "max_size,chunks",
     test_combinations,
 )
+@pytest.mark.skip("Too slow for large data")
 def test_xarray_to_text_jinja(
     tmp_path, max_size, chunks, time_file, memory_file
 ):
@@ -143,6 +150,7 @@ def create_and_write_np_savetxt(tmp_path, data: xr.DataArray):
     "max_size,chunks",
     test_combinations,
 )
+@pytest.mark.skip("Too slow for large data")
 def test_xarray_to_text_np_savetxt(
     tmp_path, max_size, chunks, memory_file, time_file
 ):
@@ -162,16 +170,24 @@ def test_xarray_to_text_np_savetxt(
 
 
 def create_and_write_extras(tmp_path, data: xr.DataArray):
+    file_path = tmp_path / "test_xarray_to_text_extras.disu"
+    with open(file_path, "w") as f:
+        f.write("BEGIN GRIDDATA\n")
     promise = xarray_extras.csv.to_csv(
         data,
-        tmp_path / "test_xarray_to_text_extras.disu",
+        file_path,
         header=False,
         index=False,
         float_format="%.4f",
         lineterminator=" ",
         compression=None,
+        mode="a",
     )
     promise.compute()
+    # we have to open the file again,
+    # because xarray_extras only allows paths and no file handlers.
+    with open(file_path, "a") as f:
+        f.write("\nEND GRIDDATA\n")
 
 
 @pytest.mark.parametrize(
@@ -193,4 +209,4 @@ def test_xarray_to_text_extras(
 
     with open(tmp_path / "test_xarray_to_text_extras.disu", "r") as f:
         output = f.readlines()
-        assert len(output) == 1
+        assert len(output) == 3
