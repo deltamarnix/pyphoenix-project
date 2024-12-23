@@ -79,7 +79,7 @@ def mem_check_function(
     )
 
 
-def create_and_write_jinja(tmp_path, data: xr.DataArray):
+def create_and_write_jinja(file_path, data: xr.DataArray):
     env = jinja2.Environment(
         loader=jinja2.PackageLoader("flopy4.xarray_jinja"),
         trim_blocks=True,
@@ -92,36 +92,35 @@ def create_and_write_jinja(tmp_path, data: xr.DataArray):
         data=data
     )
     with np.printoptions(precision=4, linewidth=sys.maxsize):
-        with open(tmp_path / "test_xarray_to_text_jinja.disu", "w") as f:
+        with open(file_path, "w") as f:
             f.writelines(generator)
 
 
-@pytest.mark.parametrize(
-    "max_size,chunks",
-    test_combinations,
-)
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.skip("Too slow for large data")
 @pytest.mark.timing
 def test_xarray_to_text_jinja(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_text_jinja.disu"
+
     profile_function(
         create_and_write_jinja,
-        (tmp_path, data),
+        (file_path, data),
         time_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
 
-    with open(tmp_path / "test_xarray_to_text_jinja.disu", "r") as f:
+    with open(file_path, "r") as f:
         output = f.readlines()
         assert (
             len(output) == 2 + max_size / chunks
         )  # begin + end + lines of data
 
 
-def create_and_write_pandas(tmp_path, data: xr.DataArray):
+def create_and_write_pandas(file_path, data: xr.DataArray):
     pandas_data = data.to_pandas()
-    with open(tmp_path / "test_xarray_to_text_extras.disu", "w") as f:
+    with open(file_path, "w") as f:
         f.write("BEGIN GRIDDATA\n")
         pandas_data.to_csv(
             f,
@@ -133,28 +132,27 @@ def create_and_write_pandas(tmp_path, data: xr.DataArray):
         f.write("\nEND GRIDDATA\n")
 
 
-@pytest.mark.parametrize(
-    "max_size,chunks",
-    test_combinations,
-)
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.timing
 def test_xarray_to_text_pandas(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_text_extras.disu"
+
     profile_function(
         create_and_write_pandas,
-        (tmp_path, data),
+        (file_path, data),
         time_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
 
-    with open(tmp_path / "test_xarray_to_text_extras.disu", "r") as f:
+    with open(file_path, "r") as f:
         output = f.readlines()
         assert len(output) == 3  # begin + end + 1 line of data
 
 
-def create_and_write_np_savetxt(tmp_path, data: xr.DataArray):
-    with open(tmp_path / "test_xarray_to_text_raw.disu", "w") as f:
+def create_and_write_np_savetxt(file_path, data: xr.DataArray):
+    with open(file_path, "w") as f:
         f.write("BEGIN GRIDDATA\n")
         for block in data.data.to_delayed():
             block_data = block.compute()
@@ -162,29 +160,27 @@ def create_and_write_np_savetxt(tmp_path, data: xr.DataArray):
         f.write("\nEND GRIDDATA\n")
 
 
-@pytest.mark.parametrize(
-    "max_size,chunks",
-    test_combinations,
-)
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.skip("Too slow for large data")
 @pytest.mark.timing
 def test_xarray_to_text_np_savetxt(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_text_raw.disu"
+
     profile_function(
         create_and_write_np_savetxt,
-        (tmp_path, data),
+        (file_path, data),
         time_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
 
-    with open(tmp_path / "test_xarray_to_text_raw.disu", "r") as f:
+    with open(file_path, "r") as f:
         output = f.readlines()
         assert len(output) == 3
 
 
-def create_and_write_extras(tmp_path, data: xr.DataArray):
-    file_path = tmp_path / "test_xarray_to_text_extras.disu"
+def create_and_write_extras(file_path, data: xr.DataArray):
     with open(file_path, "w") as f:
         f.write("BEGIN GRIDDATA\n")
     promise = xarray_extras.csv.to_csv(
@@ -204,41 +200,39 @@ def create_and_write_extras(tmp_path, data: xr.DataArray):
         f.write("\nEND GRIDDATA\n")
 
 
-@pytest.mark.parametrize(
-    "max_size,chunks",
-    test_combinations,
-)
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.timing
 def test_xarray_to_text_extras(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_text_extras.disu"
+
     profile_function(
         create_and_write_extras,
-        (tmp_path, data),
+        (file_path, data),
         time_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
 
-    with open(tmp_path / "test_xarray_to_text_extras.disu", "r") as f:
+    with open(file_path, "r") as f:
         output = f.readlines()
         assert len(output) == 3
 
 
-@pytest.mark.parametrize(
-    "max_size,chunks",
-    test_combinations,
-)
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.memory
 def test_xarray_to_text_extras_mem(tmp_path, max_size, chunks, memory_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_text_extras.disu"
+
     mem_check_function(
         create_and_write_extras,
-        (tmp_path, data),
+        (file_path, data),
         memory_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
 
-    with open(tmp_path / "test_xarray_to_text_extras.disu", "r") as f:
+    with open(file_path, "r") as f:
         output = f.readlines()
         assert len(output) == 3
