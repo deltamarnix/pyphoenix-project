@@ -1,5 +1,6 @@
 import sys
 import time
+import tracemalloc
 from typing import Any, Callable, Tuple
 
 import dask.array as da
@@ -58,6 +59,26 @@ def profile_function(
     time_file.write(f"| {name} | {print_args} | {end_time - start_time} |\n")
 
 
+def mem_check_function(
+    func: Callable,
+    args: Tuple[Any, ...],
+    memory_file,
+    print_args={},
+) -> None:
+    tracemalloc.start()
+    func(*args)
+    snapshot = tracemalloc.take_snapshot()
+    tracemalloc.stop()
+
+    stats_formatted = "".join(
+        [f"<li>{s}</li>" for s in snapshot.statistics("lineno")[:10]]
+    )
+    name = getattr(func, "__name__", "unknown")
+    memory_file.write(
+        f"| {name} | {print_args} | <ol>{stats_formatted}</ol> |\n"
+    )
+
+
 def create_and_write_jinja(tmp_path, data: xr.DataArray):
     env = jinja2.Environment(
         loader=jinja2.PackageLoader("flopy4.xarray_jinja"),
@@ -80,6 +101,7 @@ def create_and_write_jinja(tmp_path, data: xr.DataArray):
     test_combinations,
 )
 @pytest.mark.skip("Too slow for large data")
+@pytest.mark.timing
 def test_xarray_to_text_jinja(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
@@ -115,6 +137,7 @@ def create_and_write_pandas(tmp_path, data: xr.DataArray):
     "max_size,chunks",
     test_combinations,
 )
+@pytest.mark.timing
 def test_xarray_to_text_pandas(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
@@ -144,6 +167,7 @@ def create_and_write_np_savetxt(tmp_path, data: xr.DataArray):
     test_combinations,
 )
 @pytest.mark.skip("Too slow for large data")
+@pytest.mark.timing
 def test_xarray_to_text_np_savetxt(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
@@ -184,6 +208,7 @@ def create_and_write_extras(tmp_path, data: xr.DataArray):
     "max_size,chunks",
     test_combinations,
 )
+@pytest.mark.timing
 def test_xarray_to_text_extras(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
@@ -191,6 +216,26 @@ def test_xarray_to_text_extras(tmp_path, max_size, chunks, time_file):
         create_and_write_extras,
         (tmp_path, data),
         time_file,
+        print_args={"max_size": max_size, "chunks": chunks},
+    )
+
+    with open(tmp_path / "test_xarray_to_text_extras.disu", "r") as f:
+        output = f.readlines()
+        assert len(output) == 3
+
+
+@pytest.mark.parametrize(
+    "max_size,chunks",
+    test_combinations,
+)
+@pytest.mark.memory
+def test_xarray_to_text_extras_mem(tmp_path, max_size, chunks, memory_file):
+    data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
+    data = data.chunk(chunks)
+    mem_check_function(
+        create_and_write_extras,
+        (tmp_path, data),
+        memory_file,
         print_args={"max_size": max_size, "chunks": chunks},
     )
 
