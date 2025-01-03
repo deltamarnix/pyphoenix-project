@@ -14,34 +14,34 @@ import xarray_extras.csv
 import flopy4.xarray_jinja.filters as filters
 
 test_combinations = [
-    # (1_000, 100),
-    # (1_000_000, 1_000),
+    (1_000, 100),
+    (1_000_000, 1_000),
     (1_000_000, 10_000),
     # (10_000_000, 1_000),
-    (10_000_000, 10_000),
+    # (10_000_000, 10_000),
     # (100_000_000, 10_000),
-    (100_000_000, 100_000),
-    (100_000_000, 1_000_000),  # 1_000_000 is about 8MB of chunks.
-    (
-        100_000_000,
-        10_000_000,
-    ),  # 10_000_000 is about 80MB of chunks. Copilot advised 100MB.
+    # (100_000_000, 100_000),
+    # (100_000_000, 1_000_000),  # 1_000_000 is about 8MB of chunks.
+    # (
+    #     1_000_000_000,
+    #     10_000_000,
+    # ),  # 10_000_000 is about 80MB of chunks. Copilot advised 100MB.
 ]
 
 
 @pytest.fixture(scope="module")
 def memory_file():
     with open("memory.md", "w") as f:
-        f.write("| test | args | memory (MB) | \n")
-        f.write("| --- | --- | --- | \n")
+        f.write("| test | args | memory (MB) |\n")
+        f.write("| --- | --- | --- |\n")
         yield f
 
 
 @pytest.fixture(scope="module")
 def time_file():
     with open("times.md", "w") as f:
-        f.write("| test | args | time (s) | \n")
-        f.write("| --- | --- | --- | \n")
+        f.write("| test | args | time (s) |\n")
+        f.write("| --- | --- | --- |\n")
         yield f
 
 
@@ -67,16 +67,17 @@ def mem_check_function(
 ) -> None:
     tracemalloc.start()
     func(*args)
-    snapshot = tracemalloc.take_snapshot()
+    size, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
-    stats_formatted = "".join(
-        [f"<li>{s}</li>" for s in snapshot.statistics("lineno")[:10]]
-    )
     name = getattr(func, "__name__", "unknown")
-    memory_file.write(
-        f"| {name} | {print_args} | <ol>{stats_formatted}</ol> |\n"
-    )
+    # stats_formatted = "".join(
+    #     [f"<li>{s}</li>" for s in snapshot.statistics("lineno")[:10]]
+    # )
+    # memory_file.write(
+    #     f"| {name} | {print_args} | <ol>{stats_formatted}</ol> |\n"
+    # )
+    memory_file.write(f"| {name} | {print_args} | {peak / 10**6} MB |\n")
 
 
 def create_and_write_jinja(file_path, data: xr.DataArray):
@@ -91,13 +92,14 @@ def create_and_write_jinja(file_path, data: xr.DataArray):
     generator = env.get_template("disu_template.disu.jinja").generate(
         data=data
     )
-    with np.printoptions(precision=4, linewidth=sys.maxsize):
+    with np.printoptions(
+        precision=4, linewidth=sys.maxsize, threshold=sys.maxsize
+    ):
         with open(file_path, "w") as f:
             f.writelines(generator)
 
 
 @pytest.mark.parametrize("max_size,chunks", test_combinations)
-@pytest.mark.skip("Too slow for large data")
 @pytest.mark.timing
 def test_xarray_to_text_jinja(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
@@ -161,7 +163,6 @@ def create_and_write_np_savetxt(file_path, data: xr.DataArray):
 
 
 @pytest.mark.parametrize("max_size,chunks", test_combinations)
-@pytest.mark.skip("Too slow for large data")
 @pytest.mark.timing
 def test_xarray_to_text_np_savetxt(tmp_path, max_size, chunks, time_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
@@ -221,6 +222,7 @@ def test_xarray_to_text_extras(tmp_path, max_size, chunks, time_file):
 
 @pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.memory
+@pytest.mark.skip("Memory tests take a long time to run")
 def test_xarray_to_text_extras_mem(tmp_path, max_size, chunks, memory_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
@@ -236,3 +238,67 @@ def test_xarray_to_text_extras_mem(tmp_path, max_size, chunks, memory_file):
     with open(file_path, "r") as f:
         output = f.readlines()
         assert len(output) == 3
+
+
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
+@pytest.mark.memory
+@pytest.mark.skip("Memory tests take a long time to run")
+def test_xarray_to_text_pandas_mem(tmp_path, max_size, chunks, memory_file):
+    data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
+    data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_text_pandas.disu"
+
+    mem_check_function(
+        create_and_write_pandas,
+        (file_path, data),
+        memory_file,
+        print_args={"max_size": max_size, "chunks": chunks},
+    )
+
+    with open(file_path, "r") as f:
+        output = f.readlines()
+        assert len(output) == 3
+
+
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
+@pytest.mark.memory
+@pytest.mark.skip("Memory tests take a long time to run")
+def test_xarray_to_text_np_savetext_mem(
+    tmp_path, max_size, chunks, memory_file
+):
+    data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
+    data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_text_np_savetext.disu"
+
+    mem_check_function(
+        create_and_write_np_savetxt,
+        (file_path, data),
+        memory_file,
+        print_args={"max_size": max_size, "chunks": chunks},
+    )
+
+    with open(file_path, "r") as f:
+        output = f.readlines()
+        assert len(output) == 3
+
+
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
+@pytest.mark.memory
+@pytest.mark.skip("Memory tests take a long time to run")
+def test_xarray_to_text_jinja_mem(tmp_path, max_size, chunks, memory_file):
+    data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
+    data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_text_jinja.disu"
+
+    mem_check_function(
+        create_and_write_jinja,
+        (file_path, data),
+        memory_file,
+        print_args={"max_size": max_size, "chunks": chunks},
+    )
+
+    with open(file_path, "r") as f:
+        output = f.readlines()
+        assert (
+            len(output) == 2 + max_size / chunks
+        )  # begin + end + lines of data
