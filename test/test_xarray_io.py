@@ -220,16 +220,60 @@ def test_xarray_to_text_extras(tmp_path, max_size, chunks, time_file):
         assert len(output) == 3
 
 
+def create_and_write_flatten(file_path, data: xr.DataArray):
+    with open(file_path, "w") as f:
+        data.values.flatten().astype(np.int32).tofile(f)
+
+
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
+@pytest.mark.timing
+def test_xarray_to_binary_flatten(tmp_path, max_size, chunks, time_file):
+    data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
+    data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_binary_flatten.bin"
+
+    profile_function(
+        create_and_write_flatten,
+        (file_path, data),
+        time_file,
+        print_args={"max_size": max_size, "chunks": chunks},
+    )
+
+
+def create_and_write_flatten_blocks(file_path, data: xr.DataArray):
+    with open(file_path, "w") as f:
+        for block in data.data.to_delayed():
+            block_data = block.compute()
+            block_data.astype(np.int32).tofile(f)
+
+
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
+@pytest.mark.timing
+def test_xarray_to_binary_flatten_blocks(
+    tmp_path, max_size, chunks, time_file
+):
+    data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
+    data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_binary_flatten.bin"
+
+    profile_function(
+        create_and_write_flatten_blocks,
+        (file_path, data),
+        time_file,
+        print_args={"max_size": max_size, "chunks": chunks},
+    )
+
+
 @pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.memory
 @pytest.mark.skip("Memory tests take a long time to run")
-def test_xarray_to_text_extras_mem(tmp_path, max_size, chunks, memory_file):
+def test_xarray_to_text_jinja_mem(tmp_path, max_size, chunks, memory_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
-    file_path = tmp_path / "test_xarray_to_text_extras.disu"
+    file_path = tmp_path / "test_xarray_to_text_jinja.disu"
 
     mem_check_function(
-        create_and_write_extras,
+        create_and_write_jinja,
         (file_path, data),
         memory_file,
         print_args={"max_size": max_size, "chunks": chunks},
@@ -237,7 +281,9 @@ def test_xarray_to_text_extras_mem(tmp_path, max_size, chunks, memory_file):
 
     with open(file_path, "r") as f:
         output = f.readlines()
-        assert len(output) == 3
+        assert (
+            len(output) == 2 + max_size / chunks
+        )  # begin + end + lines of data
 
 
 @pytest.mark.parametrize("max_size,chunks", test_combinations)
@@ -285,13 +331,13 @@ def test_xarray_to_text_np_savetext_mem(
 @pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.memory
 @pytest.mark.skip("Memory tests take a long time to run")
-def test_xarray_to_text_jinja_mem(tmp_path, max_size, chunks, memory_file):
+def test_xarray_to_text_extras_mem(tmp_path, max_size, chunks, memory_file):
     data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
     data = data.chunk(chunks)
-    file_path = tmp_path / "test_xarray_to_text_jinja.disu"
+    file_path = tmp_path / "test_xarray_to_text_extras.disu"
 
     mem_check_function(
-        create_and_write_jinja,
+        create_and_write_extras,
         (file_path, data),
         memory_file,
         print_args={"max_size": max_size, "chunks": chunks},
@@ -299,6 +345,22 @@ def test_xarray_to_text_jinja_mem(tmp_path, max_size, chunks, memory_file):
 
     with open(file_path, "r") as f:
         output = f.readlines()
-        assert (
-            len(output) == 2 + max_size / chunks
-        )  # begin + end + lines of data
+        assert len(output) == 3
+
+
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
+@pytest.mark.memory
+# @pytest.mark.skip("Memory tests take a long time to run")
+def test_xarray_to_binary_flatten_blocks_mem(
+    tmp_path, max_size, chunks, memory_file
+):
+    data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
+    data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_binary_flatten.bin"
+
+    mem_check_function(
+        create_and_write_flatten_blocks,
+        (file_path, data),
+        memory_file,
+        print_args={"max_size": max_size, "chunks": chunks},
+    )
