@@ -264,6 +264,25 @@ def test_xarray_to_binary_flatten_blocks(
     )
 
 
+def create_and_write_netcdf(file_path, data: xr.DataArray):
+    data.to_netcdf(file_path, format="NETCDF4", engine="netcdf4")
+
+
+@pytest.mark.parametrize("max_size,chunks", test_combinations)
+@pytest.mark.timing
+def test_xarray_to_binary_netcdf(tmp_path, max_size, chunks, time_file):
+    data = xr.DataArray(da.arange(0, max_size, 1), dims="x")
+    data = data.chunk(chunks)
+    file_path = tmp_path / "test_xarray_to_binary_netcdf.nc"
+
+    profile_function(
+        create_and_write_netcdf,
+        (file_path, data),
+        time_file,
+        print_args={"max_size": max_size, "chunks": chunks},
+    )
+
+
 @pytest.mark.parametrize("max_size,chunks", test_combinations)
 @pytest.mark.memory
 @pytest.mark.skip("Memory tests take a long time to run")
