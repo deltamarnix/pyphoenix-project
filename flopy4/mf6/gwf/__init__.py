@@ -37,15 +37,14 @@ class Gwf(Model):
         def head(self) -> xr.DataArray:
             # TODO support other extensions than .hds (e.g. .hed)
             return open_hds(
-                self.parent.parent.path / f"{self.parent.name}.hds",  # type: ignore
+                self.parent.parent.path / self.parent.oc.head_file,  # type: ignore
                 self.parent.parent.path / f"{self.parent.name}.dis.grb",  # type: ignore
             )
 
         @property
         def budget(self):
-            # TODO support other extensions than .bud (e.g. .cbc)
             return open_cbc(
-                self.parent.parent.path / f"{self.parent.name}.bud",
+                self.parent.parent.path / self.parent.oc.budget_file,
                 self.parent.parent.path / f"{self.parent.name}.dis.grb",
             )
 
